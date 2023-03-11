@@ -1,3 +1,5 @@
+# PATCHED FOR CSE291 PROJECT CoTPC
+
 # ManiSkill2
 
 ![teaser](figures/teaser_v2.jpg)
