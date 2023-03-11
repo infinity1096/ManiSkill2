@@ -263,6 +263,22 @@ class RecordEpisode(gym.Wrapper):
             group.create_dataset("obs", data=obs, dtype=obs.dtype)
         else:
             raise NotImplementedError(type(obs[0]))
+        
+        
+        ########################### ADDED CODE #############################
+        # Append info (boolean flags) to the recorded trajectories.
+        # This tells you what info to store in the trajs.
+        info_bool_keys = []
+        for k, v in self._episode_data[-1]['info'].items():
+            if type(v).__module__ == np.__name__ and v.dtype == 'bool':
+                info_bool_keys.append(k)
+            elif isinstance(v, bool):
+                info_bool_keys.append(k)
+
+        # This info only appears in some trajs.
+        if 'TimeLimit.truncated' in info_bool_keys:
+            info_bool_keys.remove('TimeLimit.truncated')
+        ####################################################################
 
         if len(self._episode_data) == 1:
             action_space = self.env.action_space
@@ -272,12 +288,27 @@ class RecordEpisode(gym.Wrapper):
                 dtype=action_space.dtype,
             )
             dones = np.empty(shape=(0,), dtype=bool)
+
+            ########################### ADDED CODE #############################
+            infos_bool = {k: np.empty(shape=(0,), dtype=bool) for k in info_bool_keys}
+            ####################################################################
+            
         else:
             # NOTE(jigu): The format is designed to be compatible with ManiSkill-Learn (pyrl).
             # Record transitions (ignore the first padded values during reset)
             actions = np.stack([x["a"] for x in self._episode_data[1:]])
             # NOTE(jigu): "dones" need to stand for task success excluding time limit.
             dones = np.stack([x["info"]["success"] for x in self._episode_data[1:]])
+            
+            ########################### ADDED CODE #############################
+            infos_bool = {k: [] for k in info_bool_keys}
+            for x in self._episode_data[1:]:
+                for k in info_bool_keys:
+                    infos_bool[k].append(x['info'][k])
+            for k in infos_bool:
+                infos_bool[k] = np.stack(infos_bool[k])
+            ####################################################################
+
 
         # Only support array like states now
         env_states = np.stack([x["s"] for x in self._episode_data])
@@ -289,6 +320,12 @@ class RecordEpisode(gym.Wrapper):
             group.create_dataset("env_init_state", data=env_states[0], dtype=np.float32)
         else:
             group.create_dataset("env_states", data=env_states, dtype=np.float32)
+
+        # Dump the additional entries to the demo trajectories.
+        rewards = np.array([x['r'] for x in self._episode_data[1:]], dtype=np.float32)
+        group.create_dataset("rewards", data=rewards, dtype=np.float32)
+        for k, v in infos_bool.items():
+            group.create_dataset(f"infos/{k}", data=v, dtype=bool)
 
         # Handle JSON
         self._json_data["episodes"].append(self._episode_info)
