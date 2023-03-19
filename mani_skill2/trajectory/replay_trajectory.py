@@ -354,6 +354,11 @@ def _main(args, proc_id: int = 0, num_procs=1, pbar=None):
     if target_control_mode is not None:
         env_kwargs["control_mode"] = target_control_mode
     env_kwargs["bg_name"] = args.bg_name
+
+    # enable segmentation map 
+    if ("+seg" in args.obs_mode):
+        env_kwargs["camera_cfgs"] = {"add_segmentation": True}
+
     env = gym.make(env_id, **env_kwargs)
     if pbar is not None:
         pbar.set_postfix(
